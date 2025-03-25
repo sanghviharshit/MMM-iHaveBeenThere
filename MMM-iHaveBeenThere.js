@@ -22,6 +22,7 @@ Module.register("MMM-iHaveBeenThere", {
     rotationDuration: 60, // Duration of one full rotation in milliseconds
     rotationX: 100,
     rotationY: -40,
+	mapType: "mercator", // orthographic, mercator
 
     // Home location configuration
     home: {
@@ -137,20 +138,26 @@ Module.register("MMM-iHaveBeenThere", {
 
       // Set themes
       root.setThemes([am5themes_Animated.new(root)]);
-
+      
       // Create the map chart
       const chart = root.container.children.push(
-        am5map.MapChart.new(root, {
-          panX: "rotateX",
-          panY: "rotateY",
-          projection: am5map.geoOrthographic(),
-          wheelX: "none",
-          wheelY: "none",
-          rotationX: self.config.rotationX, // Add this line
-          rotationY: self.config.rotationY
-        })
+        am5map.MapChart.new(root, {})
       );
 
+	  if (self.config.mapType == "orthographic") {
+		chart.set("projection", am5map.geoOrthographic());
+	  	chart.set("panX", "rotateX");
+		chart.set("panY", "rotateY");
+		chart.set("wheelX", "none");
+		chart.set("wheelY", "none");  
+		chart.set("rotationX", self.config.rotationX);
+		chart.set("rotationY", self.config.rotationY);
+	  } else {
+		chart.set("projection", am5map.geoMercator());
+	  	chart.set("panX", "translateX");
+	  	chart.set("panY", "translateY");
+	  }
+	  
       // Add cleanup for the rotation interval when the module is hidden
       this.onHide = function () {
         // clearInterval(rotationInterval);

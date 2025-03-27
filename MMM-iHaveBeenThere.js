@@ -22,7 +22,7 @@ Module.register("MMM-iHaveBeenThere", {
     rotationDuration: 60, // Duration of one full rotation in milliseconds
     rotationX: 100,
     rotationY: -40,
-	mapType: "mercator", // orthographic, mercator
+	  mapType: "mercator", // orthographic, mercator
 
     // Home location configuration
     home: {
@@ -60,7 +60,7 @@ Module.register("MMM-iHaveBeenThere", {
     ],
 
     // Color configuration
-    colorCountries: "#BDBDBD", // Country fill color
+    colorCountries: "#DADADA", // Country fill color
     colorCountryBorders: "#000000", // Country border color
     colorTargetPoints: "#FFFFFF", // Location marker color
     colorPlane: "#FF0000", // Plane icon color (if animation enabled)
@@ -206,7 +206,7 @@ Module.register("MMM-iHaveBeenThere", {
           tooltipY: 0,
           fill: am5.color(self.config.colorTargetPoints),
           stroke: root.interfaceColors.get("background"),
-          strokeWidth: 2,
+          strokeWidth: 1,
           tooltipText: "{title}"
         });
 
@@ -366,8 +366,6 @@ Module.register("MMM-iHaveBeenThere", {
 
         // Add data context for rotation handling
         planeDataItem.dataContext = {};
-
-        console.log(self.config.animationDuration);
 
         // Animate plane
         planeDataItem.animate({

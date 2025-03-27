@@ -1,23 +1,15 @@
-/* MMM-iHaveBeenThere.js
- * A MagicMirror module to display travel history on a map
- * Uses amCharts 5 for map visualization
- *
- * By Sebastian Merkel (Original)
- * Updated to amCharts 5
- * MIT Licensed.
- */
+/* MMM-iHaveBeenThere.js */
 
 Module.register("MMM-iHaveBeenThere", {
-  // Default module config
   defaults: {
-    title: "My Holidays",
+    title: "My Travels",
     animationEnabled: true, // Whether to animate the plane icon
     pauseDuration: 0.0, // Animation pause duration in seconds
     animationDuration: 60.0, // Animation duration in seconds
     displayDesc: true, // Whether to show location descriptions
     zoomLevel: 4.5, // Initial map zoom level
-    zoomLongitude: -60, // Initial center longitude
-    zoomLatitude: 30, // Initial center latitude
+    zoomLongitude: 10, // Initial center longitude
+    zoomLatitude: 45, // Initial center latitude
     rotationEnabled: true,
     rotationDuration: 60, // Duration of one full rotation in milliseconds
     rotationX: 100,
@@ -73,14 +65,10 @@ Module.register("MMM-iHaveBeenThere", {
   // Required scripts for amCharts 5
   getScripts: function () {
     return [
-      // Core amCharts 5 files
-      "https://cdn.amcharts.com/lib/5/index.js",
-      // Map plugin
-      "https://cdn.amcharts.com/lib/5/map.js",
-      // World map geodata
-      "https://cdn.amcharts.com/lib/5/geodata/worldLow.js",
-      // Animation theme
-      "https://cdn.amcharts.com/lib/5/themes/Animated.js"
+      "https://cdn.amcharts.com/lib/4/core.js",
+      "https://cdn.amcharts.com/lib/4/maps.js",
+      "https://cdn.amcharts.com/lib/4/geodata/worldLow.js",
+      "https://cdn.amcharts.com/lib/4/themes/animated.js"
     ];
   },
 
@@ -89,313 +77,205 @@ Module.register("MMM-iHaveBeenThere", {
     const wrapper = document.createElement("div");
     wrapper.style.width = "100%";
     wrapper.style.height = "700px";
-    wrapper.id = "MapDiv";
+    wrapper.id = "chartdiv";
     return wrapper;
   },
 
-  // Create line data for the map
-  createLines: function () {
-    const lines = [];
-    for (let i = 0; i < this.config.trips.length; i++) {
-      const line = {
-        geometry: {
-          type: "LineString",
-          coordinates: []
-        }
-      };
-
-      // Determine starting point (home or previous destination)
-      if (this.config.trips[i].isConnectedToPrevious && i > 0) {
-        line.geometry.coordinates.push([
-          this.config.trips[i - 1].longitude,
-          this.config.trips[i - 1].latitude
-        ]);
-      } else {
-        line.geometry.coordinates.push([
-          this.config.home.longitude,
-          this.config.home.latitude
-        ]);
-      }
-
-      // Add destination point
-      line.geometry.coordinates.push([
-        this.config.trips[i].longitude,
-        this.config.trips[i].latitude
-      ]);
-
-      lines.push(line);
-    }
-    return lines;
-  },
-
-  // Initialize the module
-  start: function () {
+  start: function() {
     const self = this;
+    
+    setTimeout(function() {
+      // Themes begin
+      am4core.useTheme(am4themes_animated);
 
-    setTimeout(() => {
-      // Create root element
-      const root = am5.Root.new("MapDiv");
-
-      // Set themes
-      root.setThemes([am5themes_Animated.new(root)]);
+      // Create map instance
+      var chart = am4core.create("chartdiv", am4maps.MapChart);
+      chart.geodata = am4geodata_worldLow;
+      chart.projection = new am4maps.projections.Miller();
       
-      // Create the map chart
-      const chart = root.container.children.push(
-        am5map.MapChart.new(root, {})
-      );
-
-	  if (self.config.mapType == "orthographic") {
-		chart.set("projection", am5map.geoOrthographic());
-	  	chart.set("panX", "rotateX");
-		chart.set("panY", "rotateY");
-		chart.set("wheelX", "none");
-		chart.set("wheelY", "none");  
-		chart.set("rotationX", self.config.rotationX);
-		chart.set("rotationY", self.config.rotationY);
-	  } else {
-		chart.set("projection", am5map.geoMercator());
-	  	chart.set("panX", "translateX");
-	  	chart.set("panY", "translateY");
-	  }
-	  
-      // Add cleanup for the rotation interval when the module is hidden
-      this.onHide = function () {
-        // clearInterval(rotationInterval);
-        root.dispose();
-      };
-      // // Create series for background fill
-      // const backgroundSeries = chart.series.push(am5map.MapPolygonSeries.new(root, {}));
-      // backgroundSeries.mapPolygons.template.setAll({
-      // 	fill: root.interfaceColors.get("alternativeBackground"),
-      // 	fillOpacity: 0,
-      // 	strokeOpacity: 0
-      // });
-
-      // // Add background polygon
-      // backgroundSeries.data.push({
-      // 	geometry: am5map.getGeoRectangle(90, 180, -90, -180)
-      // });
-
-      // Create main polygon series for countries
-      const polygonSeries = chart.series.push(
-        am5map.MapPolygonSeries.new(root, {
-          geoJSON: am5geodata_worldLow,
-          exclude: ["AQ"], // Exclude Antarctica
-          fill: am5.color(self.config.colorCountries),
-          stroke: am5.color(self.config.colorCountryBorders)
-        })
-      );
-
-      // Create line series for trajectory lines
-      const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
-      lineSeries.mapLines.template.setAll({
-        stroke: am5.color(self.config.colorPlaneLine)
-        // strokeWidth: 2,
-        // strokeOpacity: 0.4,
-      });
-
-      // Create point series for markers
-      const pointSeries = chart.series.push(
-        am5map.MapPointSeries.new(root, {})
-      );
-
-      // Configure point markers
-      pointSeries.bullets.push(function () {
-        const circle = am5.Circle.new(root, {
-          radius: 5,
-          tooltipY: 0,
-          fill: am5.color(self.config.colorTargetPoints),
-          stroke: root.interfaceColors.get("background"),
-          strokeWidth: 1,
-          tooltipText: "{title}"
-        });
-
-        return am5.Bullet.new(root, {
-          sprite: circle
-        });
-      });
-
-      // Add home location
-      const home = addLocation({
-        latitude: self.config.home.latitude,
-        longitude: self.config.home.longitude,
-        title: self.config.home.description
-      });
-
-      // Array to store all points for connecting lines
-      const points = [home];
-
-      // Add all trip locations
-      self.config.trips.forEach((trip, index) => {
-        const location = addLocation({
-          latitude: trip.latitude,
-          longitude: trip.longitude,
-          title: trip.description
-        });
-        points.push(location);
-
-        // Create line from home or previous point
-        if (trip.isConnectedToPrevious && index > 0) {
-          lineSeries.pushDataItem({
-            pointsToConnect: [points[index], location]
-          });
-        } else {
-          lineSeries.pushDataItem({
-            pointsToConnect: [home, location]
-          });
-        }
-      });
-
-      // Helper function to add locations
-      function addLocation(coords) {
-        return pointSeries.pushDataItem({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          title: coords.title
-        });
-      }
-
-      // Set map zoom and center
-      // Set map zoom and center
-      chart.set("zoom", self.config.zoomLevel);
-      chart.set("centerGeoPoint", {
+      // Set zoom level and center
+      chart.homeZoomLevel = self.config.zoomLevel;
+      chart.homeGeoPoint = {
         latitude: self.config.zoomLatitude,
         longitude: self.config.zoomLongitude
+      };
+
+      // Create map polygon series
+      var polygonSeries = chart.series.push(new am4maps.MapPolygonSeries());
+      polygonSeries.useGeodata = true;
+      polygonSeries.mapPolygons.template.fill = self.config.colorCountries;
+      polygonSeries.mapPolygons.template.stroke = self.config.colorCountryBorders;
+      polygonSeries.mapPolygons.template.nonScalingStroke = true;
+      polygonSeries.exclude = ["AQ"];
+
+      // Add city points
+      var cities = chart.series.push(new am4maps.MapImageSeries());
+      cities.mapImages.template.nonScaling = true;
+
+      var city = cities.mapImages.template.createChild(am4core.Circle);
+      city.radius = 5;
+      city.tooltipY = 0;
+      city.fill = self.config.colorTargetPoints;
+      city.strokeWidth = 2;
+      city.stroke = "#DDD";
+
+      // Function to add cities
+      function addCity(coords, title) {
+        var city = cities.mapImages.create();
+        city.latitude = coords.latitude;
+        city.longitude = coords.longitude;
+        city.tooltipText = title;
+        return city;
+      }
+
+      // Add home and all cities
+      var cityPoints = [];
+      var home = addCity(self.config.home, self.config.home.description);
+      cityPoints.push(home);
+
+      self.config.trips.forEach(trip => {
+        cityPoints.push(addCity(trip, trip.description));
       });
 
-      if (self.config.rotationEnabled) {
-        // Add continuous rotation animation
-        chart.animate({
-          key: "rotationX",
-          from: 0,
-          to: 360,
-          duration: self.config.rotationDuration * 1000,
-          loops: Infinity
-        });
+      // Add lines
+      var lineSeries = chart.series.push(new am4maps.MapArcSeries());
+      lineSeries.mapLines.template.line.strokeWidth = 2;
+      lineSeries.mapLines.template.line.strokeOpacity = 0.4;
+      lineSeries.mapLines.template.line.stroke = self.config.colorPlaneLine;
+      lineSeries.mapLines.template.line.nonScalingStroke = true;
+      lineSeries.mapLines.template.line.strokeDasharray = "1,1";
+      lineSeries.zIndex = 10;
+
+      // Add shadow lines
+      var shadowLineSeries = chart.series.push(new am4maps.MapLineSeries());
+      shadowLineSeries.mapLines.template.line.strokeOpacity = 0;
+      shadowLineSeries.mapLines.template.line.nonScalingStroke = true;
+      shadowLineSeries.mapLines.template.shortestDistance = false;
+      shadowLineSeries.zIndex = 5;
+
+      // Function to add lines
+      function addLine(from, to) {
+        var line = lineSeries.mapLines.create();
+        line.imagesToConnect = [from, to];
+        line.line.controlPointDistance = -0.3;
+
+        var shadowLine = shadowLineSeries.mapLines.create();
+        shadowLine.imagesToConnect = [from, to];
+        return line;
       }
 
-      // Add title if configured
-      if (self.config.title) {
-        chart.children.push(
-          am5.Label.new(root, {
-            text: self.config.title,
-            fontSize: 25,
-            fill: am5.color(self.config.colorTitleFont),
-            x: am5.percent(50),
-            centerX: am5.percent(50),
-            paddingTop: 15,
-            paddingBottom: 15
-          })
-        );
-      }
+      // Add all lines
+      self.config.trips.forEach((trip, index) => {
+        if (trip.isConnectedToPrevious && index > 0) {
+          addLine(cityPoints[index], cityPoints[index + 1]);
+        } else {
+          addLine(cityPoints[0], cityPoints[index + 1]);
+        }
+      });
 
-      // Add legend if enabled
-      if (self.config.displayDesc) {
-        const legend = chart.children.push(
-          am5.Legend.new(root, {
-            centerX: am5.percent(50),
-            x: am5.percent(50),
-            layout: root.horizontalLayout
-          })
-        );
-        legend.data.setAll(pointSeries.dataItems);
-      }
+      // Add plane
+      var plane = lineSeries.mapLines.getIndex(0).lineObjects.create();
+      plane.position = 0;
+      plane.width = 48;
+      plane.height = 48;
 
-      // Optional: Add plane animation if enabled
-      if (self.config.animationEnabled) {
-        // Create line series for trajectory lines
-        const lineSeries = chart.series.push(
-          am5map.MapLineSeries.new(root, {})
-        );
-        lineSeries.mapLines.template.setAll({
-          stroke: am5.color(self.config.colorPlaneLine),
-          strokeWidth: 2,
-          strokeOpacity: 0.4
-        });
+      plane.adapter.add("scale", function(scale, target) {
+        return 0.5 * (1 - (Math.abs(0.5 - target.position)));
+      });
 
-        // Helper function to add locations
-        function addLocation(coords) {
-          return pointSeries.pushDataItem({
-            latitude: coords.latitude,
-            longitude: coords.longitude
-          });
+      var planeImage = plane.createChild(am4core.Sprite);
+      planeImage.scale = 0.2;
+      planeImage.horizontalCenter = "middle";
+      planeImage.verticalCenter = "middle";
+      planeImage.path = "m2,106h28l24,30h72l-44,-133h35l80,132h98c21,0 21,34 0,34l-98,0 -80,134h-35l43,-133h-71l-24,30h-28l15,-47";
+      planeImage.fill = self.config.colorPlane;
+      planeImage.strokeOpacity = 0;
+
+      // Add shadow plane
+      var shadowPlane = shadowLineSeries.mapLines.getIndex(0).lineObjects.create();
+      shadowPlane.position = 0;
+      shadowPlane.width = 48;
+      shadowPlane.height = 48;
+
+      var shadowPlaneImage = shadowPlane.createChild(am4core.Sprite);
+      shadowPlaneImage.scale = 0.05;
+      shadowPlaneImage.horizontalCenter = "middle";
+      shadowPlaneImage.verticalCenter = "middle";
+      shadowPlaneImage.path = "m2,106h28l24,30h72l-44,-133h35l80,132h98c21,0 21,34 0,34l-98,0 -80,134h-35l43,-133h-71l-24,30h-28l15,-47";
+      shadowPlaneImage.fill = am4core.color("#000");
+      shadowPlaneImage.strokeOpacity = 0;
+
+      shadowPlane.adapter.add("scale", function(scale, target) {
+        target.opacity = (0.6 - (Math.abs(0.5 - target.position)));
+        return 0.5 - 0.3 * (1 - (Math.abs(0.5 - target.position)));
+      });
+
+      // Plane animation
+      var currentLine = 0;
+      var direction = 1;
+
+      function flyPlane() {
+        // Get current line to attach plane to
+        plane.mapLine = lineSeries.mapLines.getIndex(currentLine);
+        plane.parent = lineSeries;
+        shadowPlane.mapLine = shadowLineSeries.mapLines.getIndex(currentLine);
+        shadowPlane.parent = shadowLineSeries;
+        shadowPlaneImage.rotation = planeImage.rotation;
+
+        // Set up animation
+        var from, to;
+        var numLines = lineSeries.mapLines.length;
+
+        if (direction == 1) {
+          from = 0;
+          to = 1;
+          if (planeImage.rotation != 0) {
+            planeImage.animate({ to: 0, property: "rotation" }, 1000).events.on("animationended", flyPlane);
+            return;
+          }
+        } else {
+          from = 1;
+          to = 0;
+          if (planeImage.rotation != 180) {
+            planeImage.animate({ to: 180, property: "rotation" }, 1000).events.on("animationended", flyPlane);
+            return;
+          }
         }
 
-        // Add all points and create lineDataItem
-        const points = [];
-        points.push(addLocation(self.config.home)); // Add home
+        // Start the animation
+        var animation = plane.animate({
+          from: from,
+          to: to,
+          property: "position"
+        }, 5000, am4core.ease.sinInOut);
 
-        // Add all trips
-        self.config.trips.forEach((trip) => {
-          points.push(addLocation(trip));
-        });
+        animation.events.on("animationended", flyPlane);
 
-        // Create line connecting all points
-        const lineDataItem = lineSeries.pushDataItem({
-          pointsToConnect: points
-        });
+        shadowPlane.animate({
+          from: from,
+          to: to,
+          property: "position"
+        }, 5000, am4core.ease.sinInOut);
 
-        // Create plane series
-        const planeSeries = chart.series.push(
-          am5map.MapPointSeries.new(root, {})
-        );
-
-        // Create plane sprite
-        const plane = am5.Graphics.new(root, {
-          svgPath:
-            "m2,106h28l24,30h72l-44,-133h35l80,132h98c21,0 21,34 0,34l-98,0 -80,134h-35l43,-133h-71l-24,30h-28l15,-47",
-          scale: 0.06,
-          centerY: am5.p50,
-          centerX: am5.p50,
-          fill: am5.color(self.config.colorPlane)
-        });
-
-        // Add plane to series
-        planeSeries.bullets.push(function () {
-          const container = am5.Container.new(root, {});
-          container.children.push(plane);
-          return am5.Bullet.new(root, { sprite: container });
-        });
-
-        // Create plane data item
-        const planeDataItem = planeSeries.pushDataItem({
-          lineDataItem: lineDataItem,
-          positionOnLine: 0,
-          autoRotate: true
-        });
-
-        // Add data context for rotation handling
-        planeDataItem.dataContext = {};
-
-        // Animate plane
-        planeDataItem.animate({
-          key: "positionOnLine",
-          to: 1,
-          duration: self.config.animationDuration * 1000,
-          loops: Infinity,
-          easing: am5.ease.yoyo(am5.ease.linear)
-        });
-
-        // Handle plane rotation
-        planeDataItem.on("positionOnLine", (value) => {
-          if (planeDataItem.dataContext.prevPosition < value) {
-            plane.set("rotation", 0);
-          }
-          if (planeDataItem.dataContext.prevPosition > value) {
-            plane.set("rotation", -180);
-          }
-          planeDataItem.dataContext.prevPosition = value;
-        });
+        // Increment line, or reverse the direction
+        currentLine += direction;
+        if (currentLine < 0) {
+          currentLine = 0;
+          direction = 1;
+        } else if ((currentLine + 1) > numLines) {
+          currentLine = numLines - 1;
+          direction = -1;
+        }
       }
 
-      // Make stuff animate on load
-      chart.appear(1000, 100);
+      // Start the plane animation
+      flyPlane();
 
-      // Dispose of the chart when the module is hidden
-      this.onHide = function () {
-        clearInterval(rotationInterval);
-        root.dispose();
+      // Clean up on hide
+      self.onHide = function() {
+        chart.dispose();
       };
+
     }, 1000);
   }
 });
